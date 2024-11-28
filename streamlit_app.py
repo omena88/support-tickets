@@ -116,16 +116,16 @@ if "tickets_df" not in st.session_state:
                 ))
 
         tickets_data.append({
-            "id": f"TICKET-{1000 + i}",
-            "problema": random.choice(problemas_ejemplo),
-            "estado": random.choice(["Abierto", "En Progreso", "Cerrado"]),
-            "prioridad": random.choice(["Alta", "Media", "Baja"]),
-            "fecha_creacion": fecha,
-            "empresa": empresa,
-            "usuario": usuario,
-            "agente": agente,
-            "mensajes": mensajes
-        })
+    "id": f"TICKET-{1000 + i}",
+    "problema": random.choice(problemas_ejemplo),
+    "estado": random.choice(["Abierto", "En Progreso", "Cerrado"]),
+    "prioridad": random.choice(["Alta", "Media", "Baja"]),
+    "fecha_creacion": fecha.strftime("%Y-%m-%d %H:%M:%S"),  # Convertir a string
+    "empresa": empresa,
+    "usuario": usuario,
+    "agente": agente,
+    "mensajes": str(len(mensajes))  # Guardar solo la cantidad de mensajes
+})
 
     st.session_state.tickets_df = pd.DataFrame(tickets_data)
 
