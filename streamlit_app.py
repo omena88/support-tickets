@@ -253,6 +253,7 @@ def nuevo_ticket():
             ], ignore_index=True)
             
             st.success("Ticket creado exitosamente")
+            st.experimental_rerun()
 
 def gestionar_usuarios():
     """
@@ -341,6 +342,7 @@ def gestionar_agentes():
             else:
                 st.session_state.agentes.append(nombre_agente)
                 st.success(f"Agente '{nombre_agente}' agregado exitosamente.")
+                st.experimental_rerun()
     
     # 4.2. Mostrar y gestionar agentes existentes
     st.subheader("Agentes Actuales")
@@ -356,16 +358,21 @@ def gestionar_agentes():
                     # Reasignar tickets del agente eliminado
                     idx = st.session_state.tickets_df[st.session_state.tickets_df.agente == agente].index
                     if not idx.empty:
-                        nuevo_agente = random.choice([a for a in st.session_state.agentes if a != agente])
-                        st.session_state.tickets_df.loc[idx, 'agente'] = nuevo_agente
-                        st.success(f"Agente '{agente}' eliminado y tickets reasignados a '{nuevo_agente}'.")
+                        # Reasignar a otro agente aleatorio
+                        nuevos_agentes = [a for a in st.session_state.agentes if a != agente]
+                        if nuevos_agentes:
+                            nuevo_agente = random.choice(nuevos_agentes)
+                            st.session_state.tickets_df.loc[idx, 'agente'] = nuevo_agente
+                            st.success(f"Agente '{agente}' eliminado y tickets reasignados a '{nuevo_agente}'.")
+                        else:
+                            st.error("No hay agentes disponibles para reasignar.")
                     else:
                         st.success(f"Agente '{agente}' eliminado.")
                     st.experimental_rerun()
 
 def tickets_existentes():
     """
-    Muestra y permite gestionar los tickets existentes.
+    Muestra y permite gestionar los tickets existentes, con la capacidad de buscar por número.
     """
     st.header("Tickets Existentes")
     
@@ -387,42 +394,20 @@ def tickets_existentes():
             "Prioridad",
             ["Alta", "Media", "Baja"]
         )
-
-    # 5.2. Aplicar filtros
-    df_filtrado = st.session_state.tickets_df.copy()
-    if filtro_estado:
-        df_filtrado = df_filtrado[df_filtrado.estado.isin(filtro_estado)]
-    if filtro_empresa:
-        df_filtrado = df_filtrado[df_filtrado.empresa.isin(filtro_empresa)]
-    if filtro_prioridad:
-        df_filtrado = df_filtrado[df_filtrado.prioridad.isin(filtro_prioridad)]
-
-    # 5.3. Mostrar tickets en una tabla interactiva sin la columna 'mensajes'
-    st.subheader("Lista de Tickets")
-    tickets_display = df_filtrado[["id", "problema", "estado", "prioridad", "fecha_creacion", "empresa", "usuario", "agente"]]
-    tickets_display = tickets_display.rename(columns={
-        "id": "ID",
-        "problema": "Problema",
-        "estado": "Estado",
-        "prioridad": "Prioridad",
-        "fecha_creacion": "Fecha de Creación",
-        "empresa": "Empresa",
-        "usuario": "Usuario",
-        "agente": "Agente Asignado"
-    })
-    tickets_display = tickets_display.sort_values(by="fecha_creacion", ascending=False)
-    tickets_display = tickets_display.reset_index(drop=True)
-
-    st.dataframe(tickets_display)
-
-    # 5.4. Seleccionar un ticket para editar
-    selected_ticket_id = st.selectbox("Selecciona un Ticket para Editar", options=df_filtrado["id"].tolist())
-
-    if selected_ticket_id:
-        ticket = df_filtrado[df_filtrado["id"] == selected_ticket_id].iloc[0]
-        with st.expander(f"Editar Ticket {ticket['id']}", expanded=True):
-            # Información del ticket
-            st.markdown(f"""
+    
+    # 5.2. Buscador por número de ticket
+    st.subheader("Buscar Ticket por Número")
+    numero_ticket = st.text_input("Ingrese el número de ticket (e.g., TICKET-1050)")
+    if numero_ticket:
+        df_filtrado = st.session_state.tickets_df[st.session_state.tickets_df.id == numero_ticket]
+        if df_filtrado.empty:
+            st.error("No se encontró ningún ticket con ese número.")
+        else:
+            # Mostrar el ticket encontrado
+            ticket = df_filtrado.iloc[0]
+            with st.expander(f"#{ticket.id} - {ticket.problema[:50]}...", expanded=True):
+                # Información del ticket
+                st.markdown(f"""
 <div class="ticket-header">
     <table width="100%">
         <tr>
@@ -438,94 +423,88 @@ def tickets_existentes():
     </table>
 </div>
 """, unsafe_allow_html=True)
-            
-            # 5.5. Edición de estado, agente y prioridad
-            col1, col2, col3 = st.columns(3)
-            nuevo_estado = col1.selectbox(
-                "Estado",
-                ["Abierto", "En Progreso", "Cerrado"], 
-                index=["Abierto", "En Progreso", "Cerrado"].index(ticket.estado),
-                key=f"estado_{ticket.id}"
-            )
-            nuevo_agente = col2.selectbox(
-                "Agente",
-                st.session_state.agentes,
-                index=st.session_state.agentes.index(ticket.agente) if ticket.agente in st.session_state.agentes else 0,
-                key=f"agente_{ticket.id}"
-            )
-            nueva_prioridad = col3.selectbox(
-                "Prioridad",
-                ["Alta", "Media", "Baja"],
-                index=["Alta", "Media", "Baja"].index(ticket.prioridad),
-                key=f"prioridad_{ticket.id}"
-            )
-            
-            # 5.6. Actualizar ticket si hay cambios
-            if (nuevo_estado != ticket.estado or 
-                nuevo_agente != ticket.agente or 
-                nueva_prioridad != ticket.prioridad):
-                idx = st.session_state.tickets_df[st.session_state.tickets_df.id == ticket.id].index[0]
-                st.session_state.tickets_df.at[idx, 'estado'] = nuevo_estado
-                st.session_state.tickets_df.at[idx, 'agente'] = nuevo_agente
-                st.session_state.tickets_df.at[idx, 'prioridad'] = nueva_prioridad
-                st.success("Información del ticket actualizada.")
-                st.experimental_rerun()
-            
-            # 5.7. Mostrar mensajes
-            st.write("---")
-            st.write("**Historial de Mensajes:**")
-            for msg in ticket["mensajes"]:
-                if msg["tipo"] == "usuario":
-                    st.markdown(f"""
-                        <div class="mensaje-usuario">
-                            <strong>{msg['autor']}</strong> - {msg['timestamp']}
-                            <br>{msg['contenido']}
-                        </div>
-                    """, unsafe_allow_html=True)
-                else:
-                    st.markdown(f"""
-                        <div class="mensaje-agente">
-                            <strong>{msg['autor']}</strong> - {msg['timestamp']}
-                            <br>{msg['contenido']}
-                        </div>
-                    """, unsafe_allow_html=True)
-            
-            # 5.8. Agregar nuevo mensaje
-            st.write("---")
-            st.write("**Agregar Nuevo Mensaje:**")
-            with st.form(f"nuevo_mensaje_{ticket.id}"):
-                nuevo_mensaje = st.text_area("Nuevo Mensaje")
-                col1, col2 = st.columns(2)
-                with col1:
-                    tipo_mensaje = st.radio("Tipo de Mensaje", ["Agente", "Usuario"], key=f"tipo_msg_{ticket.id}")
-                with col2:
-                    submitted = st.form_submit_button("Enviar Mensaje")
                 
-                if submitted and nuevo_mensaje.strip():
-                    autor = ticket["agente"] if tipo_mensaje == "Agente" else ticket["usuario"]
-                    nuevo_msg = {
-                        "contenido": nuevo_mensaje.strip(),
-                        "autor": autor,
-                        "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                        "tipo": tipo_mensaje.lower()
-                    }
+                # 5.3. Edición de estado, agente y prioridad
+                col1, col2, col3 = st.columns(3)
+                nuevo_estado = col1.selectbox(
+                    "Estado",
+                    ["Abierto", "En Progreso", "Cerrado"], 
+                    index=["Abierto", "En Progreso", "Cerrado"].index(ticket.estado),
+                    key=f"estado_{ticket.id}"
+                )
+                nuevo_agente = col2.selectbox(
+                    "Agente",
+                    st.session_state.agentes,
+                    index=st.session_state.agentes.index(ticket.agente) if ticket.agente in st.session_state.agentes else 0,
+                    key=f"agente_{ticket.id}"
+                )
+                nueva_prioridad = col3.selectbox(
+                    "Prioridad",
+                    ["Alta", "Media", "Baja"],
+                    index=["Alta", "Media", "Baja"].index(ticket.prioridad),
+                    key=f"prioridad_{ticket.id}"
+                )
+                
+                # 5.4. Actualizar ticket si hay cambios
+                if (nuevo_estado != ticket.estado or 
+                    nuevo_agente != ticket.agente or 
+                    nueva_prioridad != ticket.prioridad):
                     idx = st.session_state.tickets_df[st.session_state.tickets_df.id == ticket.id].index[0]
-                    st.session_state.tickets_df.at[idx, 'mensajes'].append(nuevo_msg)
-                    st.success("Mensaje agregado exitosamente.")
+                    st.session_state.tickets_df.at[idx, 'estado'] = nuevo_estado
+                    st.session_state.tickets_df.at[idx, 'agente'] = nuevo_agente
+                    st.session_state.tickets_df.at[idx, 'prioridad'] = nueva_prioridad
+                    st.success("Información del ticket actualizada.")
                     st.experimental_rerun()
-                elif submitted:
-                    st.error("El mensaje no puede estar vacío.")
-
-def tickets_existentes_alternative():
-    """
-    Alternativa para mostrar y gestionar tickets existentes utilizando selectbox para edición.
-    Esta función puede ser eliminada si no es necesaria.
-    """
-    pass  # Puedes implementar una alternativa si lo deseas
-
-# ============================================
-# 4. Función Principal
-# ============================================
+                
+                # 5.5. Mostrar mensajes
+                st.write("---")
+                st.write("**Historial de Mensajes:**")
+                for msg in ticket["mensajes"]:
+                    if msg["tipo"] == "usuario":
+                        st.markdown(f"""
+                            <div class="mensaje-usuario">
+                                <strong>{msg['autor']}</strong> - {msg['timestamp']}
+                                <br>{msg['contenido']}
+                            </div>
+                        """, unsafe_allow_html=True)
+                    else:
+                        st.markdown(f"""
+                            <div class="mensaje-agente">
+                                <strong>{msg['autor']}</strong> - {msg['timestamp']}
+                                <br>{msg['contenido']}
+                            </div>
+                        """, unsafe_allow_html=True)
+                
+                # 5.6. Agregar nuevo mensaje
+                st.write("---")
+                st.write("**Agregar Nuevo Mensaje:**")
+                with st.form(f"nuevo_mensaje_{ticket.id}"):
+                    nuevo_mensaje = st.text_area("Nuevo Mensaje")
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        tipo_mensaje = st.radio("Tipo de Mensaje", ["Agente", "Usuario"], key=f"tipo_msg_{ticket.id}")
+                    with col2:
+                        submitted = st.form_submit_button("Enviar Mensaje")
+                    
+                    if submitted:
+                        nuevo_mensaje = nuevo_mensaje.strip()
+                        if nuevo_mensaje:
+                            autor = ticket["agente"] if tipo_mensaje == "Agente" else ticket["usuario"]
+                            nuevo_msg = {
+                                "contenido": nuevo_mensaje,
+                                "autor": autor,
+                                "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                                "tipo": tipo_mensaje.lower()
+                            }
+                            idx = st.session_state.tickets_df[st.session_state.tickets_df.id == ticket.id].index[0]
+                            st.session_state.tickets_df.at[idx, 'mensajes'].append(nuevo_msg)
+                            st.success("Mensaje agregado exitosamente.")
+                            st.experimental_rerun()
+                        else:
+                            st.error("El mensaje no puede estar vacío.")
+    # ============================================
+    # 4. Función Principal
+    # ============================================
 
 def main():
     """
