@@ -6,7 +6,6 @@ import altair as alt
 import numpy as np
 import pandas as pd
 import streamlit as st
-from streamlit_modal import Modal
 
 # Configuración de la página
 st.set_page_config(page_title="Sistema de Tickets de Soporte",
@@ -37,6 +36,17 @@ st.markdown("""
         padding: 10px;
         border-radius: 5px;
         margin: 5px 0;
+    }
+
+    .ticket-header {
+        background-color: #f8f9fa;
+        padding: 10px;
+        border-radius: 5px;
+        margin-bottom: 10px;
+    }
+
+    .stButton > button {
+        width: 100%;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -132,6 +142,14 @@ def dashboard():
     col2.metric("Tiempo Primera Respuesta (horas)", tiempo_respuesta, "-1.5")
     col3.metric("Tiempo Promedio Resolución (horas)", tiempo_resolucion, "2")
 
+    # Explicación de métricas
+    with st.expander("ℹ️ Explicación de Métricas"):
+        st.write("""
+        - **Tickets Abiertos**: Número total de tickets que aún no han sido resueltos
+        - **Tiempo Primera Respuesta**: Tiempo promedio que toma dar la primera respuesta a un ticket
+        - **Tiempo Promedio Resolución**: Tiempo promedio que toma resolver completamente un ticket
+        """)
+
     # Gráficos
     st.subheader("Análisis de Tickets")
     
@@ -147,9 +165,11 @@ def dashboard():
     )
     st.altair_chart(tickets_mes, use_container_width=True)
 
-    # Distribución por prioridad
+    # Distribución por prioridad y agente
     col1, col2 = st.columns(2)
+    
     with col1:
+        st.write("### Distribución por Prioridad")
         prioridad_chart = (
             alt.Chart(st.session_state.tickets_df)
             .mark_arc()
@@ -160,8 +180,8 @@ def dashboard():
         )
         st.altair_chart(prioridad_chart, use_container_width=True)
 
-    # Tickets por agente
     with col2:
+        st.write("### Tickets por Agente")
         agente_chart = (
             alt.Chart(st.session_state.tickets_df)
             .mark_bar()
@@ -185,6 +205,10 @@ def nuevo_ticket():
         submitted = st.form_submit_button("Crear Ticket")
         
         if submitted:
+            if not problema:
+                st.error("Por favor, describe el problema")
+                return
+
             nuevo_ticket = {
                 "id": f"TICKET-{len(st.session_state.tickets_df) + 1001}",
                 "problema": problema,
@@ -220,17 +244,33 @@ def gestionar_usuarios():
             submitted = st.form_submit_button("Agregar Empresa")
             
             if submitted and nombre_empresa:
+                if nombre_empresa in st.session_state.empresas:
+                    st.error("Esta empresa ya existe")
+                    return
+                    
                 usuarios_lista = [u.strip() for u in usuarios.split("\n") if u.strip()]
+                if not usuarios_lista:
+                    st.error("Debe agregar al menos un usuario")
+                    return
+                    
                 st.session_state.empresas[nombre_empresa] = usuarios_lista
                 st.success(f"Empresa {nombre_empresa} agregada con {len(usuarios_lista)} usuarios")
 
-    # Mostrar empresas y usuarios
+    # Mostrar y gestionar empresas existentes
     st.subheader("Empresas y Usuarios Actuales")
     for empresa, usuarios in st.session_state.empresas.items():
         with st.expander(f"{empresa} ({len(usuarios)} usuarios)"):
             st.write("Usuarios:")
             for usuario in usuarios:
-                st.write(f"- {usuario}")
+                col1, col2 = st.columns([3, 1])
+                col1.write(f"- {usuario}")
+                if col2.button("Eliminar", key=f"del_user_{empresa}_{usuario}"):
+                    if len(usuarios) > 1:  # Evitar eliminar el último usuario
+                        st.session_state.empresas[empresa].remove(usuario)
+                        st.success(f"Usuario {usuario} eliminado de {empresa}")
+                        st.experimental_rerun()
+                    else:
+                        st.error("No se puede eliminar el último usuario de una empresa")
             
             # Agregar usuario a empresa existente
             with st.form(f"agregar_usuario_{empresa}"):
@@ -238,8 +278,12 @@ def gestionar_usuarios():
                 submitted = st.form_submit_button("Agregar Usuario")
                 
                 if submitted and nuevo_usuario:
-                    st.session_state.empresas[empresa].append(nuevo_usuario)
-                    st.success(f"Usuario {nuevo_usuario} agregado a {empresa}")
+                    if nuevo_usuario in usuarios:
+                        st.error("Este usuario ya existe en la empresa")
+                    else:
+                        st.session_state.empresas[empresa].append(nuevo_usuario)
+                        st.success(f"Usuario {nuevo_usuario} agregado a {empresa}")
+                        st.experimental_rerun()
 
 def tickets_existentes():
     st.header("Tickets Existentes")
@@ -264,7 +308,7 @@ def tickets_existentes():
         )
 
     # Aplicar filtros
-    df_filtrado = st.session_state.tickets_df
+    df_filtrado = st.session_state.tickets_df.copy()
     if filtro_estado:
         df_filtrado = df_filtrado[df_filtrado.estado.isin(filtro_estado)]
     if filtro_empresa:
@@ -275,14 +319,45 @@ def tickets_existentes():
     # Mostrar tickets
     for _, ticket in df_filtrado.iterrows():
         with st.expander(f"#{ticket.id} - {ticket.problema[:50]}..."):
-            col1, col2, col3 = st.columns(3)
-            col1.write(f"**Estado:** {ticket.estado}")
-            col2.write(f"**Prioridad:** {ticket.prioridad}")
-            col3.write(f"**Fecha:** {ticket.fecha_creacion.strftime('%d/%m/%Y %H:%M')}")
+            # Información del ticket
+            st.markdown(f"""
+            <div class="ticket-header">
+                <table width="100%">
+                    <tr>
+                        <td><strong>Estado:</strong> {ticket.estado}</td>
+                        <td><strong>Prioridad:</strong> {ticket.prioridad}</td>
+                        <td><strong>Fecha:</strong> {ticket.fecha_creacion.strftime('%d/%m/%Y %H:%M')}</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Empresa:</strong> {ticket.empresa}</td>
+                        <td><strong>Usuario:</strong> {ticket.usuario}</td>
+                        <td><strong>Agente:</strong> {ticket.agente}</td>
+                    </tr>
+                </table>
+            </div>
+            """, unsafe_allow_html=True)
             
-            st.write(f"**Empresa:** {ticket.empresa}")
-            st.write(f"**Usuario:** {ticket.usuario}")
-            st.write(f"**Agente Asignado:** {ticket.agente}")
+            # Edición de ticket
+            col1, col2, col3 = st.columns(3)
+            nuevo_estado = col1.selectbox("Estado", ["Abierto", "En Progreso", "Cerrado"], 
+                                        index=["Abierto", "En Progreso", "Cerrado"].index(ticket.estado),
+                                        key=f"estado_{ticket.id}")
+            nuevo_agente = col2.selectbox("Agente", st.session_state.agentes,
+                                        index=st.session_state.agentes.index(ticket.agente),
+                                        key=f"agente_{ticket.id}")
+            nueva_prioridad = col3.selectbox("Prioridad", ["Alta", "Media", "Baja"],
+                                           index=["Alta", "Media", "Baja"].index(ticket.prioridad),
+                                           key=f"prioridad_{ticket.id}")
+            
+            # Actualizar ticket si hay cambios
+            if (nuevo_estado != ticket.estado or 
+                nuevo_agente != ticket.agente or 
+                nueva_prioridad != ticket.prioridad):
+                idx = st.session_state.tickets_df[st.session_state.tickets_df.id == ticket.id].index[0]
+                st.session_state.tickets_df.at[idx, 'estado'] = nuevo_estado
+                st.session_state.tickets_df.at[idx, 'estado'] = nuevo_estado
+                st.session_state.tickets_df.at[idx, 'agente'] = nuevo_agente
+                st.session_state.tickets_df.at[idx, 'prioridad'] = nueva_prioridad
             
             # Mostrar mensajes
             st.write("---")
@@ -308,7 +383,7 @@ def tickets_existentes():
                 nuevo_mensaje = st.text_area("Nuevo Mensaje")
                 col1, col2 = st.columns(2)
                 with col1:
-                    tipo_mensaje = st.radio("Tipo de Mensaje", ["Agente", "Usuario"])
+                    tipo_mensaje = st.radio("Tipo de Mensaje", ["Agente", "Usuario"], key=f"tipo_msg_{ticket.id}")
                 with col2:
                     submitted = st.form_submit_button("Enviar Mensaje")
                 
@@ -331,24 +406,45 @@ def gestionar_agentes():
     # Agregar nuevo agente
     with st.form("nuevo_agente"):
         nombre_agente = st.text_input("Nombre del Agente")
+        email_agente = st.text_input("Email del Agente")
+        departamento = st.selectbox("Departamento", [
+            "Soporte Técnico",
+            "Atención al Cliente",
+            "Desarrollo",
+            "Infraestructura"
+        ])
         submitted = st.form_submit_button("Agregar Agente")
         
-        if submitted and nombre_agente:
-            if nombre_agente not in st.session_state.agentes:
-                st.session_state.agentes.append(nombre_agente)
-                st.success(f"Agente {nombre_agente} agregado exitosamente")
-            else:
-                st.warning("Este agente ya existe")
+        if submitted:
+            if not nombre_agente or not email_agente:
+                st.error("Por favor complete todos los campos")
+                return
+                
+            if nombre_agente in st.session_state.agentes:
+                st.error("Este agente ya existe")
+                return
+                
+            st.session_state.agentes.append(nombre_agente)
+            st.success(f"Agente {nombre_agente} agregado exitosamente")
 
     # Mostrar y gestionar agentes existentes
     st.subheader("Agentes Actuales")
-    for agente in st.session_state.agentes:
-        col1, col2 = st.columns([3, 1])
-        col1.write(agente)
-        if col2.button("Eliminar", key=f"del_{agente}"):
-            st.session_state.agentes.remove(agente)
-            st.success(f"Agente {agente} eliminado")
-            st.experimental_rerun()
+    if not st.session_state.agentes:
+        st.info("No hay agentes registrados")
+    else:
+        for agente in st.session_state.agentes:
+            col1, col2 = st.columns([3, 1])
+            col1.write(f"👤 {agente}")
+            if len(st.session_state.agentes) > 1:  # Evitar eliminar el último agente
+                if col2.button("Eliminar", key=f"del_{agente}"):
+                    st.session_state.agentes.remove(agente)
+                    # Reasignar tickets del agente eliminado
+                    idx = st.session_state.tickets_df[st.session_state.tickets_df.agente == agente].index
+                    if len(idx) > 0:
+                        nuevo_agente = random.choice([a for a in st.session_state.agentes if a != agente])
+                        st.session_state.tickets_df.loc[idx, 'agente'] = nuevo_agente
+                    st.success(f"Agente {agente} eliminado y tickets reasignados")
+                    st.experimental_rerun()
 
 # Menú lateral
 st.sidebar.title("Navegación")
