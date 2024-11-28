@@ -69,11 +69,11 @@ if "tickets_df" not in st.session_state:
 
     # Estructura para mensajes
     class Mensaje:
-        def __init__(self, contenido: str, autor: str, timestamp: datetime.datetime, tipo: str):
-            self.contenido = contenido
-            self.autor = autor
-            self.timestamp = timestamp
-            self.tipo = tipo  # 'usuario' o 'agente'
+        def __init__(self, contenido: str, autor: str, timestamp: str, tipo: str):
+        self.contenido = contenido
+        self.autor = autor
+        self.timestamp = timestamp
+        self.tipo = tipo
 
     # Inicializar datos
     st.session_state.empresas = {
@@ -95,27 +95,28 @@ if "tickets_df" not in st.session_state:
         usuario = random.choice(st.session_state.empresas[empresa])
         agente = random.choice(st.session_state.agentes)
         fecha = datetime.datetime.now() - datetime.timedelta(days=random.randint(0, 30))
+        fecha_str = fecha.strftime("%Y-%m-%d %H:%M:%S")
         
         # Crear mensajes de ejemplo
         mensajes = []
-        num_mensajes = random.randint(1, 4)
         for j in range(num_mensajes):
+            timestamp_msg = (fecha + datetime.timedelta(hours=j)).strftime("%Y-%m-%d %H:%M:%S")
             if j % 2 == 0:
                 mensajes.append(Mensaje(
                     f"Mensaje de usuario {j+1}",
                     usuario,
-                    fecha + datetime.timedelta(hours=j),
+                    timestamp_msg,
                     "usuario"
                 ))
             else:
                 mensajes.append(Mensaje(
                     f"Respuesta del agente {j+1}",
                     agente,
-                    fecha + datetime.timedelta(hours=j),
+                    timestamp_msg,
                     "agente"
                 ))
 
-        tickets_data.append({
+       tickets_data.append({
     "id": f"TICKET-{1000 + i}",
     "problema": random.choice(problemas_ejemplo),
     "estado": random.choice(["Abierto", "En Progreso", "Cerrado"]),
@@ -321,21 +322,21 @@ def tickets_existentes():
         with st.expander(f"#{ticket.id} - {ticket.problema[:50]}..."):
             # Información del ticket
             st.markdown(f"""
-            <div class="ticket-header">
-                <table width="100%">
-                    <tr>
-                        <td><strong>Estado:</strong> {ticket.estado}</td>
-                        <td><strong>Prioridad:</strong> {ticket.prioridad}</td>
-                        <td><strong>Fecha:</strong> {ticket.fecha_creacion.strftime('%d/%m/%Y %H:%M')}</td>
-                    </tr>
-                    <tr>
-                        <td><strong>Empresa:</strong> {ticket.empresa}</td>
-                        <td><strong>Usuario:</strong> {ticket.usuario}</td>
-                        <td><strong>Agente:</strong> {ticket.agente}</td>
-                    </tr>
-                </table>
-            </div>
-            """, unsafe_allow_html=True)
+<div class="ticket-header">
+    <table width="100%">
+        <tr>
+            <td><strong>Estado:</strong> {ticket.estado}</td>
+            <td><strong>Prioridad:</strong> {ticket.prioridad}</td>
+            <td><strong>Fecha:</strong> {pd.to_datetime(ticket.fecha_creacion).strftime('%d/%m/%Y %H:%M')}</td>
+        </tr>
+        <tr>
+            <td><strong>Empresa:</strong> {ticket.empresa}</td>
+            <td><strong>Usuario:</strong> {ticket.usuario}</td>
+            <td><strong>Agente:</strong> {ticket.agente}</td>
+        </tr>
+    </table>
+</div>
+""", unsafe_allow_html=True)
             
             # Edición de ticket
             col1, col2, col3 = st.columns(3)
@@ -388,13 +389,13 @@ def tickets_existentes():
                     submitted = st.form_submit_button("Enviar Mensaje")
                 
                 if submitted and nuevo_mensaje:
-                    autor = ticket.agente if tipo_mensaje == "Agente" else ticket.usuario
-                    nuevo_msg = Mensaje(
-                        nuevo_mensaje,
-                        autor,
-                        datetime.datetime.now(),
-                        tipo_mensaje.lower()
-                    )
+    autor = ticket.agente if tipo_mensaje == "Agente" else ticket.usuario
+    nuevo_msg = Mensaje(
+        nuevo_mensaje,
+        autor,
+        datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        tipo_mensaje.lower()
+    )
                     idx = st.session_state.tickets_df[st.session_state.tickets_df.id == ticket.id].index[0]
                     st.session_state.tickets_df.at[idx, 'mensajes'].append(nuevo_msg)
                     st.success("Mensaje agregado")
