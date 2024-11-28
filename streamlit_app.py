@@ -35,6 +35,7 @@ st.markdown("""
         padding: 10px;
         border-radius: 5px;
         margin: 5px 0;
+        color: #000000; /* Asegura que el texto sea negro */
     }
 
     .mensaje-usuario {
@@ -42,6 +43,7 @@ st.markdown("""
         padding: 10px;
         border-radius: 5px;
         margin: 5px 0;
+        color: #000000; /* Asegura que el texto sea negro */
     }
 
     .ticket-header {
@@ -49,6 +51,7 @@ st.markdown("""
         padding: 10px;
         border-radius: 5px;
         margin-bottom: 10px;
+        color: #000000; /* Asegura que el texto sea negro */
     }
 
     .stButton > button {
@@ -143,7 +146,7 @@ def inicializar_estado():
 
 def dashboard():
     """
-    Muestra el dashboard con métricas y gráficos de análisis de tickets.
+    3.1. Muestra el dashboard con métricas y gráficos de análisis de tickets.
     """
     st.header("Dashboard de Tickets")
 
@@ -212,7 +215,7 @@ def dashboard():
 
 def nuevo_ticket():
     """
-    Permite crear un nuevo ticket de soporte.
+    3.2. Permite crear un nuevo ticket de soporte.
     """
     st.header("Crear Nuevo Ticket")
 
@@ -257,11 +260,11 @@ def nuevo_ticket():
 
 def gestionar_usuarios():
     """
-    Permite crear y gestionar empresas y sus usuarios.
+    3.3. Permite crear y gestionar empresas y sus usuarios.
     """
     st.header("Gestión de Usuarios y Empresas")
     
-    # 3.1. Agregar nueva empresa
+    # Agregar nueva empresa
     with st.expander("Agregar Nueva Empresa"):
         with st.form("nueva_empresa"):
             nombre_empresa = st.text_input("Nombre de la Empresa")
@@ -282,7 +285,7 @@ def gestionar_usuarios():
                         st.session_state.empresas[nombre_empresa] = usuarios_lista
                         st.success(f"Empresa '{nombre_empresa}' agregada con {len(usuarios_lista)} usuarios.")
     
-    # 3.2. Mostrar y gestionar empresas existentes
+    # Mostrar y gestionar empresas existentes
     st.subheader("Empresas y Usuarios Actuales")
     for empresa, usuarios in st.session_state.empresas.items():
         with st.expander(f"{empresa} ({len(usuarios)} usuarios)"):
@@ -298,7 +301,7 @@ def gestionar_usuarios():
                     else:
                         st.error("No se puede eliminar el último usuario de una empresa.")
             
-            # 3.3. Agregar usuario a empresa existente
+            # Agregar usuario a empresa existente
             with st.form(f"agregar_usuario_{empresa}"):
                 nuevo_usuario = st.text_input("Nuevo Usuario")
                 submitted = st.form_submit_button("Agregar Usuario")
@@ -316,11 +319,11 @@ def gestionar_usuarios():
 
 def gestionar_agentes():
     """
-    Permite crear y gestionar agentes de atención.
+    3.4. Permite crear y gestionar agentes de atención.
     """
     st.header("Gestión de Agentes")
     
-    # 4.1. Agregar nuevo agente
+    # Agregar nuevo agente
     with st.form("nuevo_agente"):
         nombre_agente = st.text_input("Nombre del Agente")
         email_agente = st.text_input("Email del Agente")
@@ -344,7 +347,7 @@ def gestionar_agentes():
                 st.success(f"Agente '{nombre_agente}' agregado exitosamente.")
                 st.experimental_rerun()
     
-    # 4.2. Mostrar y gestionar agentes existentes
+    # Mostrar y gestionar agentes existentes
     st.subheader("Agentes Actuales")
     if not st.session_state.agentes:
         st.info("No hay agentes registrados.")
@@ -372,11 +375,11 @@ def gestionar_agentes():
 
 def tickets_existentes():
     """
-    Muestra y permite gestionar los tickets existentes, con la capacidad de buscar por número.
+    3.5. Muestra y permite gestionar los tickets existentes, con la capacidad de buscar por número.
     """
     st.header("Tickets Existentes")
     
-    # 5.1. Filtros
+    # Filtros
     col1, col2, col3 = st.columns(3)
     with col1:
         filtro_estado = st.multiselect(
@@ -395,36 +398,62 @@ def tickets_existentes():
             ["Alta", "Media", "Baja"]
         )
     
-    # 5.2. Buscador por número de ticket
+    # Aplicar filtros
+    df_filtrado = st.session_state.tickets_df.copy()
+    if filtro_estado:
+        df_filtrado = df_filtrado[df_filtrado.estado.isin(filtro_estado)]
+    if filtro_empresa:
+        df_filtrado = df_filtrado[df_filtrado.empresa.isin(filtro_empresa)]
+    if filtro_prioridad:
+        df_filtrado = df_filtrado[df_filtrado.prioridad.isin(filtro_prioridad)]
+    
+    # Mostrar tickets en una tabla interactiva sin la columna 'mensajes'
+    st.subheader("Lista de Tickets")
+    tickets_display = df_filtrado[["id", "problema", "estado", "prioridad", "fecha_creacion", "empresa", "usuario", "agente"]]
+    tickets_display = tickets_display.rename(columns={
+        "id": "ID",
+        "problema": "Problema",
+        "estado": "Estado",
+        "prioridad": "Prioridad",
+        "fecha_creacion": "Fecha de Creación",
+        "empresa": "Empresa",
+        "usuario": "Usuario",
+        "agente": "Agente Asignado"
+    })
+    tickets_display = tickets_display.sort_values(by="fecha_creacion", ascending=False)
+    tickets_display = tickets_display.reset_index(drop=True)
+
+    st.dataframe(tickets_display)
+    
+    # Búsqueda de ticket por número
     st.subheader("Buscar Ticket por Número")
     numero_ticket = st.text_input("Ingrese el número de ticket (e.g., TICKET-1050)")
     if numero_ticket:
-        df_filtrado = st.session_state.tickets_df[st.session_state.tickets_df.id == numero_ticket]
-        if df_filtrado.empty:
+        df_busqueda = st.session_state.tickets_df[st.session_state.tickets_df.id == numero_ticket]
+        if df_busqueda.empty:
             st.error("No se encontró ningún ticket con ese número.")
         else:
-            # Mostrar el ticket encontrado
-            ticket = df_filtrado.iloc[0]
+            ticket = df_busqueda.iloc[0]
             with st.expander(f"#{ticket.id} - {ticket.problema[:50]}...", expanded=True):
                 # Información del ticket
                 st.markdown(f"""
-<div class="ticket-header">
-    <table width="100%">
-        <tr>
-            <td><strong>Estado:</strong> {ticket.estado}</td>
-            <td><strong>Prioridad:</strong> {ticket.prioridad}</td>
-            <td><strong>Fecha:</strong> {ticket.fecha_creacion}</td>
-        </tr>
-        <tr>
-            <td><strong>Empresa:</strong> {ticket.empresa}</td>
-            <td><strong>Usuario:</strong> {ticket.usuario}</td>
-            <td><strong>Agente:</strong> {ticket.agente}</td>
-        </tr>
-    </table>
-</div>
-""", unsafe_allow_html=True)
+    <div class="ticket-header">
+        <table width="100%">
+            <tr>
+                <td><strong>Estado:</strong> {ticket.estado}</td>
+                <td><strong>Prioridad:</strong> {ticket.prioridad}</td>
+                <td><strong>Fecha:</strong> {ticket.fecha_creacion}</td>
+            </tr>
+            <tr>
+                <td><strong>Empresa:</strong> {ticket.empresa}</td>
+                <td><strong>Usuario:</strong> {ticket.usuario}</td>
+                <td><strong>Agente:</strong> {ticket.agente}</td>
+            </tr>
+        </table>
+    </div>
+    """, unsafe_allow_html=True)
                 
-                # 5.3. Edición de estado, agente y prioridad
+                # Edición de estado, agente y prioridad
                 col1, col2, col3 = st.columns(3)
                 nuevo_estado = col1.selectbox(
                     "Estado",
@@ -445,7 +474,7 @@ def tickets_existentes():
                     key=f"prioridad_{ticket.id}"
                 )
                 
-                # 5.4. Actualizar ticket si hay cambios
+                # Actualizar ticket si hay cambios
                 if (nuevo_estado != ticket.estado or 
                     nuevo_agente != ticket.agente or 
                     nueva_prioridad != ticket.prioridad):
@@ -456,7 +485,7 @@ def tickets_existentes():
                     st.success("Información del ticket actualizada.")
                     st.experimental_rerun()
                 
-                # 5.5. Mostrar mensajes
+                # Mostrar mensajes
                 st.write("---")
                 st.write("**Historial de Mensajes:**")
                 for msg in ticket["mensajes"]:
@@ -475,7 +504,7 @@ def tickets_existentes():
                             </div>
                         """, unsafe_allow_html=True)
                 
-                # 5.6. Agregar nuevo mensaje
+                # Agregar nuevo mensaje
                 st.write("---")
                 st.write("**Agregar Nuevo Mensaje:**")
                 with st.form(f"nuevo_mensaje_{ticket.id}"):
@@ -502,63 +531,64 @@ def tickets_existentes():
                             st.experimental_rerun()
                         else:
                             st.error("El mensaje no puede estar vacío.")
+    
     # ============================================
     # 4. Función Principal
     # ============================================
 
-def main():
-    """
-    Función principal que ejecuta la aplicación.
-    """
-    # Inicializar el estado
-    inicializar_estado()
-    
-    # Menú lateral
-    st.sidebar.title("Navegación")
-    pagina = st.sidebar.radio(
-        "Seleccione una página",
-        ["Dashboard", "Nuevo Ticket", "Tickets Existentes", "Usuarios", "Agentes"]
-    )
-    
-    # Mostrar página seleccionada
-    if pagina == "Dashboard":
-        dashboard()
-    elif pagina == "Nuevo Ticket":
-        nuevo_ticket()
-    elif pagina == "Tickets Existentes":
-        tickets_existentes()
-    elif pagina == "Usuarios":
-        gestionar_usuarios()
-    elif pagina == "Agentes":
-        gestionar_agentes()
-    
-    # ============================================
-    # 5. Métricas en el Sidebar
-    # ============================================
-    st.sidebar.markdown("---")
-    st.sidebar.subheader("Métricas Rápidas")
-    total_tickets = len(st.session_state.tickets_df)
-    tickets_abiertos = len(st.session_state.tickets_df[st.session_state.tickets_df.estado == "Abierto"])
-    tickets_progreso = len(st.session_state.tickets_df[st.session_state.tickets_df.estado == "En Progreso"])
-    
-    st.sidebar.write(f"Total de Tickets: **{total_tickets}**")
-    st.sidebar.write(f"Tickets Abiertos: **{tickets_abiertos}**")
-    st.sidebar.write(f"Tickets en Progreso: **{tickets_progreso}**")
-    
-    # ============================================
-    # 6. Información del Sistema
-    # ============================================
-    st.sidebar.markdown("---")
-    st.sidebar.info(
+    def main():
         """
-        Sistema de Tickets de Soporte
-        - Versión 1.0
-        - © 2024
+        4.1. Función principal que ejecuta la aplicación.
         """
-    )
+        # Inicializar el estado
+        inicializar_estado()
+        
+        # Menú lateral
+        st.sidebar.title("Navegación")
+        pagina = st.sidebar.radio(
+            "Seleccione una página",
+            ["Dashboard", "Nuevo Ticket", "Tickets Existentes", "Usuarios", "Agentes"]
+        )
+        
+        # Mostrar página seleccionada
+        if pagina == "Dashboard":
+            dashboard()
+        elif pagina == "Nuevo Ticket":
+            nuevo_ticket()
+        elif pagina == "Tickets Existentes":
+            tickets_existentes()
+        elif pagina == "Usuarios":
+            gestionar_usuarios()
+        elif pagina == "Agentes":
+            gestionar_agentes()
+        
+        # ============================================
+        # 5. Métricas en el Sidebar
+        # ============================================
+        st.sidebar.markdown("---")
+        st.sidebar.subheader("Métricas Rápidas")
+        total_tickets = len(st.session_state.tickets_df)
+        tickets_abiertos = len(st.session_state.tickets_df[st.session_state.tickets_df.estado == "Abierto"])
+        tickets_progreso = len(st.session_state.tickets_df[st.session_state.tickets_df.estado == "En Progreso"])
+        
+        st.sidebar.write(f"Total de Tickets: **{total_tickets}**")
+        st.sidebar.write(f"Tickets Abiertos: **{tickets_abiertos}**")
+        st.sidebar.write(f"Tickets en Progreso: **{tickets_progreso}**")
+        
+        # ============================================
+        # 6. Información del Sistema
+        # ============================================
+        st.sidebar.markdown("---")
+        st.sidebar.info(
+            """
+            Sistema de Tickets de Soporte
+            - Versión 1.0
+            - © 2024
+            """
+        )
 
 # ============================================
-# 7. Ejecutar la Aplicación
+# 5. Ejecutar la Aplicación
 # ============================================
 
 if __name__ == "__main__":
