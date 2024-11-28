@@ -7,8 +7,8 @@ import pandas as pd
 import streamlit as st
 
 # Show app title and description.
-st.set_page_config(page_title="Support tickets", page_icon="🎫")
-st.title("🎫 Support tickets")
+st.set_page_config(page_title="Tickets de soporte", page_icon="🎫")
+st.title("🎫 Tickets de soporte")
 st.write(
     """
     This app shows how you can build an internal tool in Streamlit. Here, we are 
